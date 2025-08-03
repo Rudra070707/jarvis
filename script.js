@@ -1,12 +1,6 @@
-const statusText = document.getElementById("statusText");
+const statusText = document.querySelector(".typing");
 const synth = window.speechSynthesis;
-
 let voices = [];
-
-// Ensure voices are loaded first
-window.speechSynthesis.onvoiceschanged = () => {
-  voices = window.speechSynthesis.getVoices();
-};
 
 const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
 recognition.continuous = true;
@@ -20,9 +14,42 @@ const commands = {
   "what time is it": () => {
     const now = new Date();
     return `It is ${now.toLocaleTimeString()}`;
-  }
+  },
+  "what is your name": "I am JARVIS, your virtual assistant."
 };
 
+// Load voices before speaking
+function loadVoices() {
+  return new Promise((resolve) => {
+    const interval = setInterval(() => {
+      voices = synth.getVoices();
+      if (voices.length !== 0) {
+        clearInterval(interval);
+        resolve();
+      }
+    }, 100);
+  });
+}
+
+// Robotic voice speaker
+async function speak(text) {
+  await loadVoices();
+
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate = 0.9;      // Slower for robotic feel
+  utterance.pitch = 0.5;     // Deeper voice
+  utterance.volume = 1;
+
+  // Try to pick a preferred robotic voice
+  const jarvisVoice = voices.find(v => v.lang === "en-US" && v.name.includes("Google"))
+                    || voices.find(v => v.lang === "en-US")
+                    || voices[0];
+  utterance.voice = jarvisVoice;
+
+  synth.speak(utterance);
+}
+
+// Typing effect with voice
 function typeAndSpeak(text) {
   let i = 0;
   statusText.textContent = "";
@@ -36,24 +63,14 @@ function typeAndSpeak(text) {
   }, 40);
 }
 
-function speak(text) {
-  if (!voices.length) voices = synth.getVoices(); // Ensure voices are available
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 1;
-
-  // Choose preferred voice
-  const jarvisVoice = voices.find(v => v.lang === "en-US" && v.name.includes("Google")) || voices[0];
-  utterance.voice = jarvisVoice;
-
-  synth.speak(utterance);
-}
-
+// Speech recognition
 recognition.onstart = () => {
   statusText.textContent = "JARVIS is listening...";
 };
 
 recognition.onerror = (event) => {
   statusText.textContent = "Error: " + event.error;
+  console.error("Speech recognition error:", event.error);
 };
 
 recognition.onresult = (event) => {
@@ -70,20 +87,14 @@ recognition.onresult = (event) => {
   }
 };
 
-function startListening() {
-  try {
-    recognition.start();
-  } catch (e) {
-    console.log("Already started");
-  }
-}
+// Restart mic if it stops
+recognition.onend = () => {
+  console.log("Restarting recognition...");
+  recognition.start();
+};
 
-// ✅ Auto-start on page load
+// Auto-start on load
 window.onload = () => {
-  startListening();
-
-  // Give browser a moment to load voices before first speak
-  setTimeout(() => {
-    typeAndSpeak("JARVIS is now active.");
-  }, 500);
+  recognition.start();
+  typeAndSpeak("JARVIS is now active.");
 };
